@@ -1,14 +1,14 @@
 using UnityEngine;
 
-public class playercontroler : MonoBehaviour
+public class Playercontroler : MonoBehaviour
 {
-    [Header("Movement")]
-    public float walkSpeed = 2f;
-    public float runSpeed = 4f;
-    public float rotationSpeed = 12f;
+    public float walkSpeed = 2.5f;
+    public float runSpeed = 5f;
+    public float crawlSpeed = 1.2f;
+    public float rotationSpeed = 10f;
+    public float jumpForce = 4f;
 
-    [Header("Jump")]
-    public float jumpForce = 5f;
+    public bool isDead = false;
 
     private Rigidbody rb;
     private Animator animator;
@@ -24,30 +24,42 @@ public class playercontroler : MonoBehaviour
 
         animator.SetFloat("Speed", 0f);
         animator.SetBool("Run", false);
+        animator.SetBool("Crawl", false);
         animator.SetBool("IsGrounded", true);
-
-        rb.freezeRotation = true;
     }
 
     void Update()
     {
+        if (isDead)
+        {
+            inputDirection = Vector3.zero;
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("Run", false);
+            animator.SetBool("Crawl", false);
+            return;
+        }
+
         float x = Input.GetAxisRaw("Horizontal");
         float z = Input.GetAxisRaw("Vertical");
 
         inputDirection = new Vector3(x, 0f, z).normalized;
 
         bool isMoving = inputDirection.magnitude > 0.1f;
-        bool isRunning = isMoving && Input.GetKey(KeyCode.LeftShift);
+        bool controlHeld = Input.GetKey(KeyCode.LeftControl);
+        bool shiftHeld = Input.GetKey(KeyCode.LeftShift);
 
-        animator.SetFloat("Speed", isMoving ? 0.5f : 0f);
+        bool isCrawling = isMoving && controlHeld;
+        bool isRunning = isMoving && shiftHeld && !controlHeld;
+
+        animator.SetFloat("Speed", isMoving ? 1f : 0f);
         animator.SetBool("Run", isRunning);
+        animator.SetBool("Crawl", isCrawling);
         animator.SetBool("IsGrounded", isGrounded);
 
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded && !isCrawling)
         {
             isGrounded = false;
             jumpPressed = true;
-
             animator.SetBool("IsGrounded", false);
             animator.SetTrigger("Jump");
         }
@@ -55,10 +67,22 @@ public class playercontroler : MonoBehaviour
 
     void FixedUpdate()
     {
-        bool isMoving = inputDirection.magnitude > 0.1f;
-        bool isRunning = isMoving && Input.GetKey(KeyCode.LeftShift);
+        if (isDead)
+            return;
 
-        float currentSpeed = isRunning ? runSpeed : walkSpeed;
+        bool isMoving = inputDirection.magnitude > 0.1f;
+        bool controlHeld = Input.GetKey(KeyCode.LeftControl);
+        bool shiftHeld = Input.GetKey(KeyCode.LeftShift);
+
+        bool isCrawling = isMoving && controlHeld;
+        bool isRunning = isMoving && shiftHeld && !controlHeld;
+
+        float currentSpeed = walkSpeed;
+
+        if (isCrawling)
+            currentSpeed = crawlSpeed;
+        else if (isRunning)
+            currentSpeed = runSpeed;
 
         if (isMoving)
         {
