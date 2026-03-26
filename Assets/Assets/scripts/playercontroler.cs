@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class Playercontroler : MonoBehaviour
 {
@@ -8,19 +8,23 @@ public class Playercontroler : MonoBehaviour
     public float rotationSpeed = 10f;
     public float jumpForce = 4f;
 
-    public bool isDead = false;
-
     private Rigidbody rb;
     private Animator animator;
+    private AudioSource audioSource;
 
     private Vector3 inputDirection;
     private bool isGrounded = true;
     private bool jumpPressed = false;
 
+    public bool isDead = false;
+
+    private Ruchomaplatforma currentPlatform;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
+        audioSource = GetComponent<AudioSource>();
 
         animator.SetFloat("Speed", 0f);
         animator.SetBool("Run", false);
@@ -30,14 +34,7 @@ public class Playercontroler : MonoBehaviour
 
     void Update()
     {
-        if (isDead)
-        {
-            inputDirection = Vector3.zero;
-            animator.SetFloat("Speed", 0f);
-            animator.SetBool("Run", false);
-            animator.SetBool("Crawl", false);
-            return;
-        }
+        if (isDead) return;
 
         float x = Input.GetAxisRaw("Horizontal");
         float z = Input.GetAxisRaw("Vertical");
@@ -60,15 +57,20 @@ public class Playercontroler : MonoBehaviour
         {
             isGrounded = false;
             jumpPressed = true;
+
             animator.SetBool("IsGrounded", false);
             animator.SetTrigger("Jump");
+
+            if (audioSource != null && audioSource.clip != null)
+            {
+                audioSource.PlayOneShot(audioSource.clip);
+            }
         }
     }
 
     void FixedUpdate()
     {
-        if (isDead)
-            return;
+        if (isDead) return;
 
         bool isMoving = inputDirection.magnitude > 0.1f;
         bool controlHeld = Input.GetKey(KeyCode.LeftControl);
@@ -84,10 +86,16 @@ public class Playercontroler : MonoBehaviour
         else if (isRunning)
             currentSpeed = runSpeed;
 
+        Vector3 platformMove = Vector3.zero;
+        if (currentPlatform != null)
+        {
+            platformMove = currentPlatform.PlatformDelta;
+        }
+
+        Vector3 playerMove = Vector3.zero;
         if (isMoving)
         {
-            Vector3 move = inputDirection * currentSpeed * Time.fixedDeltaTime;
-            rb.MovePosition(rb.position + move);
+            playerMove = inputDirection * currentSpeed * Time.fixedDeltaTime;
 
             Quaternion targetRotation = Quaternion.LookRotation(inputDirection);
             Quaternion smoothRotation = Quaternion.Slerp(
@@ -98,6 +106,8 @@ public class Playercontroler : MonoBehaviour
 
             rb.MoveRotation(smoothRotation);
         }
+
+        rb.MovePosition(rb.position + platformMove + playerMove);
 
         if (jumpPressed)
         {
@@ -111,12 +121,27 @@ public class Playercontroler : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter(Collision collision)
+    void OnCollisionEnter(Collision collision)
     {
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
             animator.SetBool("IsGrounded", true);
+        }
+
+        if (collision.gameObject.CompareTag("Platform"))
+        {
+            currentPlatform = collision.gameObject.GetComponent<Ruchomaplatforma>();
+            isGrounded = true;
+            animator.SetBool("IsGrounded", true);
+        }
+    }
+
+    void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Platform"))
+        {
+            currentPlatform = null;
         }
     }
 }
