@@ -14,7 +14,7 @@ public class PlayerLife : MonoBehaviour
     private Vector3 respawnPoint;
     private Quaternion respawnRotation;
     private Rigidbody rb;
-    private Playercontroler controller;
+    private PlayerController controller;
 
     void Start()
     {
@@ -22,10 +22,15 @@ public class PlayerLife : MonoBehaviour
         respawnRotation = transform.rotation;
 
         rb = GetComponent<Rigidbody>();
-        controller = GetComponent<Playercontroler>();
+        controller = GetComponent<PlayerController>();
 
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
+
+        if (rb != null)
+        {
+            rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+        }
 
         UpdateUI();
     }
@@ -44,7 +49,18 @@ public class PlayerLife : MonoBehaviour
         lives--;
 
         if (controller != null)
+        {
             controller.isDead = true;
+            controller.PlayDeathSound();
+        }
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.useGravity = false;
+            rb.constraints = RigidbodyConstraints.FreezeAll;
+        }
 
         if (animator != null)
             animator.SetTrigger("Die");
@@ -60,12 +76,19 @@ public class PlayerLife : MonoBehaviour
         {
             if (rb != null)
             {
+                rb.constraints = RigidbodyConstraints.FreezeAll;
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
+                rb.useGravity = false;
             }
 
             transform.position = respawnPoint;
-            transform.rotation = respawnRotation;
+            transform.rotation = Quaternion.Euler(0f, respawnRotation.eulerAngles.y, 0f);
+
+            foreach (Transform child in transform)
+            {
+                child.localRotation = Quaternion.identity;
+            }
 
             if (animator != null)
             {
@@ -76,6 +99,14 @@ public class PlayerLife : MonoBehaviour
                 animator.SetBool("Run", false);
                 animator.SetBool("Crawl", false);
                 animator.SetBool("IsGrounded", true);
+            }
+
+            if (rb != null)
+            {
+                rb.useGravity = true;
+                rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
             }
 
             if (controller != null)
@@ -96,5 +127,11 @@ public class PlayerLife : MonoBehaviour
     {
         if (livesText != null)
             livesText.text = "Lives: " + lives;
+    }
+
+    public void SetCheckpoint(Vector3 newPosition, Quaternion newRotation)
+    {
+        respawnPoint = newPosition;
+        respawnRotation = newRotation;
     }
 }
