@@ -2,19 +2,20 @@ using UnityEngine;
 
 public class Checkpoint : MonoBehaviour
 {
-    public Vector3 respawnOffset = new Vector3(0f, 1f, 0f);
-    private bool activated = false;
+    public Vector3 respawnOffset = new Vector3(0f, 1.5f, 0f);
 
+    private bool activated = false;
     private Renderer checkpointRenderer;
+    private CheckpointUI checkpointUI;
 
     void Start()
     {
         checkpointRenderer = GetComponent<Renderer>();
 
         if (checkpointRenderer != null)
-        {
             checkpointRenderer.material.color = Color.yellow;
-        }
+
+        checkpointUI = FindFirstObjectByType<CheckpointUI>();
     }
 
     private void OnTriggerEnter(Collider other)
@@ -31,9 +32,10 @@ public class Checkpoint : MonoBehaviour
             activated = true;
 
             if (checkpointRenderer != null)
-            {
                 checkpointRenderer.material.color = Color.green;
-            }
+
+            if (checkpointUI != null)
+                checkpointUI.ShowCheckpoint();
 
             Debug.Log("Checkpoint activated: " + gameObject.name);
         }

@@ -3,9 +3,10 @@ using UnityEngine;
 public class Levelfinish : MonoBehaviour
 {
     public GameObject levelCompletePanel;
+
     private bool finished = false;
 
-    void Start()
+    private void Start()
     {
         if (levelCompletePanel != null)
         {
@@ -15,11 +16,22 @@ public class Levelfinish : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!finished && other.CompareTag("Player"))
+        if (finished) return;
+        if (!other.CompareTag("Player")) return;
+
+        finished = true;
+
+        BackgroundMusic music = FindFirstObjectByType<BackgroundMusic>();
+        if (music != null)
         {
-            finished = true;
-            levelCompletePanel.SetActive(true);
-            Time.timeScale = 0f;
+            music.StopMusic();
         }
+
+        if (levelCompletePanel != null)
+        {
+            levelCompletePanel.SetActive(true);
+        }
+
+        Debug.Log("Level Complete!");
     }
 }
