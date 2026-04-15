@@ -2,18 +2,24 @@ using UnityEngine;
 
 public class Checkpoint : MonoBehaviour
 {
-    public Vector3 respawnOffset = new Vector3(0f, 1.5f, 0f);
+    public Transform respawnPoint;
+    public AudioClip checkpointSound;
 
     private bool activated = false;
-    private Renderer checkpointRenderer;
+    private AudioSource audioSource;
     private CheckpointUI checkpointUI;
 
     void Start()
     {
-        checkpointRenderer = GetComponent<Renderer>();
+        audioSource = GetComponent<AudioSource>();
 
-        if (checkpointRenderer != null)
-            checkpointRenderer.material.color = Color.yellow;
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        audioSource.playOnAwake = false;
+        audioSource.spatialBlend = 0f;
 
         checkpointUI = FindFirstObjectByType<CheckpointUI>();
     }
@@ -25,17 +31,16 @@ public class Checkpoint : MonoBehaviour
 
         PlayerLife playerLife = other.GetComponentInParent<PlayerLife>();
 
-        if (playerLife != null)
+        if (playerLife != null && respawnPoint != null)
         {
-            Vector3 respawnPosition = transform.position + respawnOffset;
-            playerLife.SetCheckpoint(respawnPosition, transform.rotation);
+            playerLife.SetCheckpoint(respawnPoint.position, respawnPoint.rotation);
             activated = true;
-
-            if (checkpointRenderer != null)
-                checkpointRenderer.material.color = Color.green;
 
             if (checkpointUI != null)
                 checkpointUI.ShowCheckpoint();
+
+            if (audioSource != null && checkpointSound != null)
+                audioSource.PlayOneShot(checkpointSound);
 
             Debug.Log("Checkpoint activated: " + gameObject.name);
         }
