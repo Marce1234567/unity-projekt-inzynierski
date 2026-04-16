@@ -27,16 +27,12 @@ public class PlayerLife : MonoBehaviour
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
 
-        if (rb != null)
-        {
-            rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-        }
-
         UpdateUI();
     }
 
     void Update()
     {
+        // Spadni�cie z mapy
         if (transform.position.y < fallHeight && !isDead)
         {
             Die();
@@ -54,14 +50,6 @@ public class PlayerLife : MonoBehaviour
             controller.PlayDeathSound();
         }
 
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            rb.useGravity = false;
-            rb.constraints = RigidbodyConstraints.FreezeAll;
-        }
-
         if (animator != null)
             animator.SetTrigger("Die");
 
@@ -70,26 +58,30 @@ public class PlayerLife : MonoBehaviour
         Invoke(nameof(Respawn), 2f);
     }
 
+    public void KillPlayer()
+    {
+        if (!isDead)
+        {
+            Die();
+        }
+    }
+
     void Respawn()
     {
         if (lives > 0)
         {
+            // reset fizyki
             if (rb != null)
             {
-                rb.constraints = RigidbodyConstraints.FreezeAll;
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
-                rb.useGravity = false;
             }
 
+            // teleport do checkpointu
             transform.position = respawnPoint;
-            transform.rotation = Quaternion.Euler(0f, respawnRotation.eulerAngles.y, 0f);
+            transform.rotation = respawnRotation;
 
-            foreach (Transform child in transform)
-            {
-                child.localRotation = Quaternion.identity;
-            }
-
+            // reset animacji
             if (animator != null)
             {
                 animator.Rebind();
@@ -101,14 +93,6 @@ public class PlayerLife : MonoBehaviour
                 animator.SetBool("IsGrounded", true);
             }
 
-            if (rb != null)
-            {
-                rb.useGravity = true;
-                rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
-
             if (controller != null)
                 controller.isDead = false;
 
@@ -116,6 +100,7 @@ public class PlayerLife : MonoBehaviour
         }
         else
         {
+            // GAME OVER
             if (gameOverPanel != null)
                 gameOverPanel.SetActive(true);
 

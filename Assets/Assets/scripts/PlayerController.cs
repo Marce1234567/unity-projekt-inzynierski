@@ -9,6 +9,13 @@ public class PlayerController : MonoBehaviour
     public float rotationSpeed = 10f;
     public float jumpForce = 4f;
 
+    [Header("Acceleration")]
+    public float acceleration = 8f;
+    public float deceleration = 10f;
+
+    [Header("Run Jump Boost")]
+    public float runJumpForce = 5.2f;
+
     [Header("Audio")]
     public AudioClip jumpSound;
     public AudioClip footstepSound;
@@ -29,6 +36,8 @@ public class PlayerController : MonoBehaviour
     private bool jumpPressed = false;
 
     private float footstepTimer = 0f;
+    private float currentMoveSpeed = 0f;
+    private float currentJumpForce = 0f;
 
     public bool isDead = false;
 
@@ -39,6 +48,8 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
         audioSource = GetComponent<AudioSource>();
+
+        currentJumpForce = jumpForce;
 
         if (animator != null)
         {
@@ -64,6 +75,8 @@ public class PlayerController : MonoBehaviour
 
         bool isCrawling = isMoving && controlHeld;
         bool isRunning = isMoving && shiftHeld && !controlHeld;
+
+        currentJumpForce = isRunning ? runJumpForce : jumpForce;
 
         if (animator != null)
         {
@@ -102,12 +115,24 @@ public class PlayerController : MonoBehaviour
         bool isCrawling = isMoving && controlHeld;
         bool isRunning = isMoving && shiftHeld && !controlHeld;
 
-        float currentSpeed = walkSpeed;
+        float targetSpeed = 0f;
 
-        if (isCrawling)
-            currentSpeed = crawlSpeed;
-        else if (isRunning)
-            currentSpeed = runSpeed;
+        if (isMoving)
+        {
+            targetSpeed = walkSpeed;
+
+            if (isCrawling)
+                targetSpeed = crawlSpeed;
+            else if (isRunning)
+                targetSpeed = runSpeed;
+        }
+
+        float speedChangeRate = isMoving ? acceleration : deceleration;
+        currentMoveSpeed = Mathf.MoveTowards(
+            currentMoveSpeed,
+            targetSpeed,
+            speedChangeRate * Time.fixedDeltaTime
+        );
 
         Vector3 platformMove = Vector3.zero;
         if (currentPlatform != null)
@@ -118,7 +143,7 @@ public class PlayerController : MonoBehaviour
         Vector3 playerMove = Vector3.zero;
         if (isMoving)
         {
-            playerMove = inputDirection * currentSpeed * Time.fixedDeltaTime;
+            playerMove = inputDirection * currentMoveSpeed * Time.fixedDeltaTime;
 
             Quaternion targetRotation = Quaternion.LookRotation(inputDirection);
             Quaternion smoothRotation = Quaternion.Slerp(
@@ -140,7 +165,7 @@ public class PlayerController : MonoBehaviour
             velocity.y = 0f;
             rb.linearVelocity = velocity;
 
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            rb.AddForce(Vector3.up * currentJumpForce, ForceMode.Impulse);
         }
     }
 

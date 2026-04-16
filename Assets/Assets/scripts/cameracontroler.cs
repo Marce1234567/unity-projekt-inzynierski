@@ -6,6 +6,9 @@ public class cameracontroler : MonoBehaviour
 
     [Header("Distance")]
     public float distance = 6.5f;
+    public float minDistance = 3f;
+    public float maxDistance = 10f;
+    public float zoomSpeed = 2f;
     public float height = 1.2f;
 
     [Header("Mouse")]
@@ -24,21 +27,26 @@ public class cameracontroler : MonoBehaviour
         Vector3 angles = transform.eulerAngles;
         yaw = angles.y;
         pitch = angles.x;
-
-        Cursor.visible = true;
     }
 
     void LateUpdate()
     {
         if (target == null) return;
 
+        // Obrót tylko przy trzymaniu PPM
         if (Input.GetMouseButton(1))
         {
             yaw += Input.GetAxis("Mouse X") * mouseSensitivity;
             pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
-
             pitch = Mathf.Clamp(pitch, minVerticalAngle, maxVerticalAngle);
         }
+
+        // ZOOM (scroll myszy)
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        float targetDistance = distance - scroll * zoomSpeed;
+
+        distance = Mathf.Lerp(distance, targetDistance, 10f * Time.deltaTime);
+        distance = Mathf.Clamp(distance, minDistance, maxDistance);
 
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
 
