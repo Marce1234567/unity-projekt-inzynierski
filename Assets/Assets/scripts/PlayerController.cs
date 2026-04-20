@@ -7,14 +7,23 @@ public class PlayerController : MonoBehaviour
     public float runSpeed = 5f;
     public float crawlSpeed = 1.2f;
     public float rotationSpeed = 10f;
+
+    [Header("Jump")]
     public float jumpForce = 4f;
+    public float runJumpForce = 5.2f;
+    public int maxJumps = 2;
 
     [Header("Acceleration")]
     public float acceleration = 8f;
     public float deceleration = 10f;
 
-    [Header("Run Jump Boost")]
-    public float runJumpForce = 5.2f;
+    [Header("Jump Assist")]
+    public float coyoteTime = 0.2f;
+
+    [Header("Wall Jump")]
+    public float wallCheckDistance = 0.7f;
+    public float wallJumpForce = 6f;
+    public LayerMask wallLayer;
 
     [Header("Audio")]
     public AudioClip jumpSound;
@@ -34,10 +43,15 @@ public class PlayerController : MonoBehaviour
     private Vector3 inputDirection;
     private bool isGrounded = true;
     private bool jumpPressed = false;
+    private bool wallJumpPressed = false;
 
     private float footstepTimer = 0f;
     private float currentMoveSpeed = 0f;
     private float currentJumpForce = 0f;
+    private float coyoteTimer = 0f;
+
+    private int jumpCount = 0;
+    private Vector3 wallJumpDirection = Vector3.zero;
 
     public bool isDead = false;
 
@@ -78,6 +92,23 @@ public class PlayerController : MonoBehaviour
 
         currentJumpForce = isRunning ? runJumpForce : jumpForce;
 
+        if (isGrounded)
+            coyoteTimer = coyoteTime;
+        else
+            coyoteTimer -= Time.deltaTime;
+
+        bool isTouchingWall = false;
+
+        if (!isGrounded)
+        {
+            isTouchingWall = Physics.Raycast(
+                transform.position,
+                transform.forward,
+                wallCheckDistance,
+                wallLayer
+            );
+        }
+
         if (animator != null)
         {
             animator.SetFloat("Speed", isMoving ? 1f : 0f);
@@ -88,18 +119,56 @@ public class PlayerController : MonoBehaviour
 
         HandleFootsteps(isMoving, isRunning, isCrawling);
 
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded && !isCrawling)
+        if (Input.GetKeyDown(KeyCode.Space) && !isCrawling)
         {
-            isGrounded = false;
-            jumpPressed = true;
+            bool canNormalJump = (coyoteTimer > 0f || jumpCount < maxJumps) && jumpCount < maxJumps;
 
-            if (animator != null)
+            if (canNormalJump)
             {
-                animator.SetBool("IsGrounded", false);
-                animator.SetTrigger("Jump");
-            }
+                jumpPressed = true;
+                wallJumpPressed = false;
 
-            PlaySound(jumpSound);
+                if (!isGrounded)
+                    jumpCount++;
+                else
+                    jumpCount = 1;
+
+                isGrounded = false;
+                coyoteTimer = 0f;
+
+                if (animator != null)
+                {
+                    animator.SetBool("IsGrounded", false);
+                    animator.SetTrigger("Jump");
+                }
+
+                PlaySound(jumpSound);
+            }
+            else if (isTouchingWall)
+            {
+                RaycastHit wallHit;
+
+                if (Physics.Raycast(
+                    transform.position,
+                    transform.forward,
+                    out wallHit,
+                    wallCheckDistance,
+                    wallLayer))
+                {
+                    wallJumpPressed = true;
+                    jumpPressed = false;
+
+                    wallJumpDirection = (-wallHit.normal + Vector3.up).normalized;
+
+                    if (animator != null)
+                    {
+                        animator.SetBool("IsGrounded", false);
+                        animator.SetTrigger("Jump");
+                    }
+
+                    PlaySound(jumpSound);
+                }
+            }
         }
     }
 
@@ -167,6 +236,17 @@ public class PlayerController : MonoBehaviour
 
             rb.AddForce(Vector3.up * currentJumpForce, ForceMode.Impulse);
         }
+
+        if (wallJumpPressed)
+        {
+            wallJumpPressed = false;
+
+            Vector3 velocity = rb.linearVelocity;
+            velocity.y = 0f;
+            rb.linearVelocity = velocity;
+
+            rb.AddForce(wallJumpDirection * wallJumpForce, ForceMode.Impulse);
+        }
     }
 
     void HandleFootsteps(bool isMoving, bool isRunning, bool isCrawling)
@@ -213,6 +293,7 @@ public class PlayerController : MonoBehaviour
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
+            jumpCount = 0;
 
             if (animator != null)
                 animator.SetBool("IsGrounded", true);
@@ -225,6 +306,7 @@ public class PlayerController : MonoBehaviour
         {
             currentPlatform = collision.gameObject.GetComponent<Ruchomaplatforma>();
             isGrounded = true;
+            jumpCount = 0;
 
             if (animator != null)
                 animator.SetBool("IsGrounded", true);
