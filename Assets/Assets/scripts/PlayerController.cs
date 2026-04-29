@@ -4,6 +4,7 @@ public class PlayerController : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private Transform modelRoot;
+    public Transform cameraTransform;
 
     [Header("Movement")]
     public float walkSpeed = 2.5f;
@@ -110,6 +111,9 @@ public class PlayerController : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         capsule = GetComponent<CapsuleCollider>();
 
+        if (cameraTransform == null && Camera.main != null)
+            cameraTransform = Camera.main.transform;
+
         currentJumpForce = jumpForce;
 
         if (rb != null)
@@ -145,13 +149,7 @@ public class PlayerController : MonoBehaviour
     {
         if (isDead) return;
 
-        float x = Input.GetAxisRaw("Horizontal");
-        float z = Input.GetAxisRaw("Vertical");
-
-        inputDirection = new Vector3(x, 0f, z).normalized;
-
-        if (inputDirection.sqrMagnitude > 0.01f)
-            lastMoveDirection = inputDirection;
+        ReadInput();
 
         bool isMoving = inputDirection.magnitude > 0.1f;
         bool controlHeld = Input.GetKey(KeyCode.LeftControl);
@@ -218,6 +216,7 @@ public class PlayerController : MonoBehaviour
                     targetRotation,
                     rotationSpeed * Time.fixedDeltaTime
                 );
+
                 rb.MoveRotation(smoothRotation);
             }
 
@@ -227,6 +226,7 @@ public class PlayerController : MonoBehaviour
         if (isWallHolding)
         {
             Vector3 velocity = rb.linearVelocity;
+
             if (velocity.y < wallSlideSpeed)
                 velocity.y = wallSlideSpeed;
 
@@ -247,6 +247,7 @@ public class PlayerController : MonoBehaviour
                     targetRotation,
                     rotationSpeed * Time.fixedDeltaTime
                 );
+
                 rb.MoveRotation(smoothRotation);
             }
 
@@ -266,6 +267,7 @@ public class PlayerController : MonoBehaviour
         }
 
         float speedChangeRate = isMoving ? acceleration : deceleration;
+
         currentMoveSpeed = Mathf.MoveTowards(
             currentMoveSpeed,
             targetSpeed,
@@ -318,6 +320,33 @@ public class PlayerController : MonoBehaviour
 
             rb.AddForce(wallJumpDirection * wallJumpForce, ForceMode.Impulse);
         }
+    }
+
+    void ReadInput()
+    {
+        float x = Input.GetAxisRaw("Horizontal");
+        float z = Input.GetAxisRaw("Vertical");
+
+        if (cameraTransform != null)
+        {
+            Vector3 camForward = cameraTransform.forward;
+            Vector3 camRight = cameraTransform.right;
+
+            camForward.y = 0f;
+            camRight.y = 0f;
+
+            camForward.Normalize();
+            camRight.Normalize();
+
+            inputDirection = (camForward * z + camRight * x).normalized;
+        }
+        else
+        {
+            inputDirection = new Vector3(x, 0f, z).normalized;
+        }
+
+        if (inputDirection.sqrMagnitude > 0.01f)
+            lastMoveDirection = inputDirection;
     }
 
     void UpdateDash()
@@ -389,37 +418,10 @@ public class PlayerController : MonoBehaviour
 
         Vector3 origin = transform.position + Vector3.up * wallCheckHeight;
 
-        bool hitLeft = Physics.Raycast(
-            origin,
-            -transform.right,
-            wallCheckDistance,
-            wallLayer,
-            QueryTriggerInteraction.Ignore
-        );
-
-        bool hitRight = Physics.Raycast(
-            origin,
-            transform.right,
-            wallCheckDistance,
-            wallLayer,
-            QueryTriggerInteraction.Ignore
-        );
-
-        bool hitForward = Physics.Raycast(
-            origin,
-            transform.forward,
-            wallCheckDistance,
-            wallLayer,
-            QueryTriggerInteraction.Ignore
-        );
-
-        bool hitBackward = Physics.Raycast(
-            origin,
-            -transform.forward,
-            wallCheckDistance,
-            wallLayer,
-            QueryTriggerInteraction.Ignore
-        );
+        bool hitLeft = Physics.Raycast(origin, -transform.right, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
+        bool hitRight = Physics.Raycast(origin, transform.right, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
+        bool hitForward = Physics.Raycast(origin, transform.forward, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
+        bool hitBackward = Physics.Raycast(origin, -transform.forward, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
 
         isWallLeft = hitLeft || hitForward;
         isWallRight = hitRight || hitBackward;
