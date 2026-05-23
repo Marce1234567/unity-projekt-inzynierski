@@ -2,7 +2,11 @@ using UnityEngine;
 
 public class Levelfinish : MonoBehaviour
 {
+    [Header("UI")]
     public GameObject levelCompletePanel;
+
+    [Header("Level Progress")]
+    public int currentLevelNumber = 1;
 
     private bool finished = false;
 
@@ -21,17 +25,42 @@ public class Levelfinish : MonoBehaviour
 
         finished = true;
 
-        BackgroundMusic music = FindFirstObjectByType<BackgroundMusic>();
+        // Odblokowanie nastêpnego poziomu
+        UnlockNextLevel();
+
+        // Stop muzyki
+        BackgroundMusic music =
+            FindFirstObjectByType<BackgroundMusic>();
+
         if (music != null)
         {
             music.StopMusic();
         }
 
+        // Pokazanie panelu ukoñczenia
         if (levelCompletePanel != null)
         {
             levelCompletePanel.SetActive(true);
         }
 
         Debug.Log("Level Complete!");
+    }
+
+    private void UnlockNextLevel()
+    {
+        int unlockedLevel =
+            PlayerPrefs.GetInt("UnlockedLevel", 1);
+
+        int nextLevel = currentLevelNumber + 1;
+
+        if (nextLevel > unlockedLevel)
+        {
+            PlayerPrefs.SetInt(
+                "UnlockedLevel",
+                nextLevel
+            );
+
+            PlayerPrefs.Save();
+        }
     }
 }
