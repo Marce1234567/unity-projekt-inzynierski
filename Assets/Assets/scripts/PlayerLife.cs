@@ -67,8 +67,6 @@ public class PlayerLife : MonoBehaviour
                 SetCheckpoint(spawnPoint.position, spawnPoint.rotation);
             else
                 SetCheckpoint(other.transform.position, other.transform.rotation);
-
-            Debug.Log("Checkpoint zapisany: " + other.name);
         }
 
         if (other.CompareTag("Kill"))
@@ -143,11 +141,30 @@ public class PlayerLife : MonoBehaviour
         }
         else
         {
-            if (gameOverPanel != null)
-                gameOverPanel.SetActive(true);
-
-            Time.timeScale = 0f;
+            GameOver();
         }
+    }
+
+    void GameOver()
+    {
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(true);
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+        }
+
+        if (controller != null)
+            controller.isDead = true;
+
+        Time.timeScale = 0f;
+        AudioListener.pause = true;
+
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
     }
 
     void ResetAnimator()

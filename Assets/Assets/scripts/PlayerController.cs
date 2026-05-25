@@ -25,7 +25,7 @@ public class PlayerController : MonoBehaviour
     [Header("Slide")]
     public KeyCode slideKey = KeyCode.C;
     public float slideSpeed = 7f;
-    public float slideDuration = 0.45f;
+    public float slideDuration = 1f;
 
     [Header("Dash")]
     public KeyCode dashKey = KeyCode.X;
@@ -55,6 +55,17 @@ public class PlayerController : MonoBehaviour
     public AudioClip footstepSound;
     public AudioClip landingSound;
     public AudioClip deathSound;
+    public AudioClip dashSound;
+
+    [Header("Effects")]
+    public TrailRenderer dashTrail;
+    public ParticleSystem movementParticles;
+    public CameraFOVEffect cameraFOVEffect;
+
+    [Header("Movement Particles")]
+    public float walkParticleRate = 5f;
+    public float runParticleRate = 15f;
+    public float slideParticleRate = 35f;
 
     [Header("Footstep Timing")]
     public float footstepIntervalWalk = 0.5f;
@@ -132,6 +143,15 @@ public class PlayerController : MonoBehaviour
             capsuleSlideCenter = capsuleNormalCenter - new Vector3(0f, heightDifference * 0.5f, 0f);
         }
 
+        if (dashTrail != null)
+            dashTrail.emitting = false;
+
+        if (movementParticles != null)
+        {
+            SetMovementParticleRate(0f);
+            movementParticles.Stop();
+        }
+
         if (animator != null)
         {
             animator.SetFloat("Speed", 0f);
@@ -185,6 +205,7 @@ public class PlayerController : MonoBehaviour
         }
 
         HandleFootsteps(isMoving, isRunning, isCrawling);
+        HandleMovementParticles(isMoving, isRunning, isCrawling);
         HandleJumpInput(isCrawling);
     }
 
@@ -211,13 +232,7 @@ public class PlayerController : MonoBehaviour
             if (dashDirection.sqrMagnitude > 0.01f)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(dashDirection);
-                Quaternion smoothRotation = Quaternion.Slerp(
-                    rb.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.fixedDeltaTime
-                );
-
-                rb.MoveRotation(smoothRotation);
+                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
             }
 
             return;
@@ -242,13 +257,7 @@ public class PlayerController : MonoBehaviour
             if (slideDirection.sqrMagnitude > 0.01f)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(slideDirection);
-                Quaternion smoothRotation = Quaternion.Slerp(
-                    rb.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.fixedDeltaTime
-                );
-
-                rb.MoveRotation(smoothRotation);
+                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
             }
 
             return;
@@ -287,13 +296,7 @@ public class PlayerController : MonoBehaviour
             if (canRotate)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(inputDirection);
-                Quaternion smoothRotation = Quaternion.Slerp(
-                    rb.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.fixedDeltaTime
-                );
-
-                rb.MoveRotation(smoothRotation);
+                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
             }
         }
 
@@ -359,23 +362,24 @@ public class PlayerController : MonoBehaviour
             dashTimer -= Time.deltaTime;
 
             if (dashTimer <= 0f)
+            {
                 isDashing = false;
+
+                if (dashTrail != null)
+                    dashTrail.emitting = false;
+
+                if (cameraFOVEffect != null)
+                    cameraFOVEffect.NormalFOV();
+            }
         }
     }
 
     void HandleDashInput()
     {
-        if (!Input.GetKeyDown(dashKey))
-            return;
-
-        if (isDashing)
-            return;
-
-        if (dashCooldownTimer > 0f)
-            return;
-
-        if (!allowAirDash && !isGrounded)
-            return;
+        if (!Input.GetKeyDown(dashKey)) return;
+        if (isDashing) return;
+        if (dashCooldownTimer > 0f) return;
+        if (!allowAirDash && !isGrounded) return;
 
         Vector3 rawDashDirection = inputDirection.sqrMagnitude > 0.01f ? inputDirection : lastMoveDirection;
         rawDashDirection.y = 0f;
@@ -388,6 +392,14 @@ public class PlayerController : MonoBehaviour
         isDashing = true;
         dashTimer = dashDuration;
         dashCooldownTimer = dashCooldown;
+
+        PlaySound(dashSound);
+
+        if (dashTrail != null)
+            dashTrail.emitting = true;
+
+        if (cameraFOVEffect != null)
+            cameraFOVEffect.DashFOV();
 
         isSliding = false;
         isWallHolding = false;
@@ -448,7 +460,9 @@ public class PlayerController : MonoBehaviour
             slideTimer -= Time.deltaTime;
 
             if (slideTimer <= 0f || !isGrounded)
+            {
                 isSliding = false;
+            }
         }
     }
 
@@ -485,11 +499,8 @@ public class PlayerController : MonoBehaviour
 
     void HandleJumpInput(bool isCrawling)
     {
-        if (isDashing)
-            return;
-
-        if (!Input.GetKeyDown(KeyCode.Space) || isCrawling)
-            return;
+        if (isDashing) return;
+        if (!Input.GetKeyDown(KeyCode.Space) || isCrawling) return;
 
         if (isWallHolding)
         {
@@ -636,6 +647,59 @@ public class PlayerController : MonoBehaviour
             PlaySound(footstepSound);
             footstepTimer = 0f;
         }
+    }
+
+    void HandleMovementParticles(bool isMoving, bool isRunning, bool isCrawling)
+    {
+        if (movementParticles == null)
+            return;
+
+        if (!isGrounded || isCrawling || isWallHolding || isDashing)
+        {
+            SetMovementParticleRate(0f);
+
+            if (movementParticles.isPlaying)
+                movementParticles.Stop();
+
+            return;
+        }
+
+        if (isSliding)
+        {
+            SetMovementParticleRate(slideParticleRate);
+
+            if (!movementParticles.isPlaying)
+                movementParticles.Play();
+
+            return;
+        }
+
+        if (isMoving)
+        {
+            if (isRunning)
+                SetMovementParticleRate(runParticleRate);
+            else
+                SetMovementParticleRate(walkParticleRate);
+
+            if (!movementParticles.isPlaying)
+                movementParticles.Play();
+        }
+        else
+        {
+            SetMovementParticleRate(0f);
+
+            if (movementParticles.isPlaying)
+                movementParticles.Stop();
+        }
+    }
+
+    void SetMovementParticleRate(float rate)
+    {
+        if (movementParticles == null)
+            return;
+
+        var emission = movementParticles.emission;
+        emission.rateOverTime = rate;
     }
 
     void PlaySound(AudioClip clip)

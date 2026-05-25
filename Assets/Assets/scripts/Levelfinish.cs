@@ -13,9 +13,7 @@ public class Levelfinish : MonoBehaviour
     private void Start()
     {
         if (levelCompletePanel != null)
-        {
             levelCompletePanel.SetActive(false);
-        }
     }
 
     private void OnTriggerEnter(Collider other)
@@ -25,41 +23,42 @@ public class Levelfinish : MonoBehaviour
 
         finished = true;
 
-        // Odblokowanie nastêpnego poziomu
         UnlockNextLevel();
 
-        // Stop muzyki
-        BackgroundMusic music =
-            FindFirstObjectByType<BackgroundMusic>();
+        LevelTimer timer = FindFirstObjectByType<LevelTimer>();
+        if (timer != null)
+            timer.StopTimer();
 
+        BackgroundMusic music = FindFirstObjectByType<BackgroundMusic>();
         if (music != null)
-        {
             music.StopMusic();
-        }
 
-        // Pokazanie panelu ukoñczenia
-        if (levelCompletePanel != null)
+        PlayerController controller = other.GetComponent<PlayerController>();
+        if (controller != null)
+            controller.isDead = true;
+
+        Rigidbody rb = other.GetComponent<Rigidbody>();
+        if (rb != null)
         {
-            levelCompletePanel.SetActive(true);
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
         }
 
-        Debug.Log("Level Complete!");
+        if (levelCompletePanel != null)
+            levelCompletePanel.SetActive(true);
+
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
     }
 
     private void UnlockNextLevel()
     {
-        int unlockedLevel =
-            PlayerPrefs.GetInt("UnlockedLevel", 1);
-
+        int unlockedLevel = PlayerPrefs.GetInt("UnlockedLevel", 1);
         int nextLevel = currentLevelNumber + 1;
 
         if (nextLevel > unlockedLevel)
         {
-            PlayerPrefs.SetInt(
-                "UnlockedLevel",
-                nextLevel
-            );
-
+            PlayerPrefs.SetInt("UnlockedLevel", nextLevel);
             PlayerPrefs.Save();
         }
     }
