@@ -19,8 +19,14 @@ public class MainMenuManager : MonoBehaviour
         Time.timeScale = 1f;
         AudioListener.pause = false;
 
-        UpdateLevelButtons();
+        if (!PlayerPrefs.HasKey("UnlockedLevel"))
+        {
+            PlayerPrefs.SetInt("UnlockedLevel", 1);
+            PlayerPrefs.Save();
+        }
+
         ShowMainMenu();
+        UpdateLevelButtons();
     }
 
     public void ShowMainMenu()
@@ -48,20 +54,17 @@ public class MainMenuManager : MonoBehaviour
 
     void UpdateLevelButtons()
     {
-        int unlockedLevel =
-            PlayerPrefs.GetInt("UnlockedLevel", 1);
+        int unlockedLevel = PlayerPrefs.GetInt("UnlockedLevel", 1);
 
         level1Button.interactable = true;
-        level2Button.interactable =
-            unlockedLevel >= 2;
-
-        level3Button.interactable =
-            unlockedLevel >= 3;
+        level2Button.interactable = unlockedLevel >= 2;
+        level3Button.interactable = unlockedLevel >= 3;
     }
 
     public void LoadLevel1()
     {
         PlayerPrefs.SetInt("SlotToLoad", -1);
+        PlayerPrefs.Save();
         SceneManager.LoadScene("Level1");
     }
 
@@ -71,6 +74,7 @@ public class MainMenuManager : MonoBehaviour
             return;
 
         PlayerPrefs.SetInt("SlotToLoad", -1);
+        PlayerPrefs.Save();
         SceneManager.LoadScene("Level 2");
     }
 
@@ -80,6 +84,7 @@ public class MainMenuManager : MonoBehaviour
             return;
 
         PlayerPrefs.SetInt("SlotToLoad", -1);
+        PlayerPrefs.Save();
         SceneManager.LoadScene("Level 3");
     }
 
@@ -87,7 +92,6 @@ public class MainMenuManager : MonoBehaviour
     {
         PlayerPrefs.SetString("SaveMenuMode", "Load");
         PlayerPrefs.Save();
-
         SceneManager.LoadScene("SavesMenu");
     }
 
@@ -95,7 +99,6 @@ public class MainMenuManager : MonoBehaviour
     {
         PlayerPrefs.SetInt("UnlockedLevel", 1);
         PlayerPrefs.Save();
-
         UpdateLevelButtons();
     }
 
