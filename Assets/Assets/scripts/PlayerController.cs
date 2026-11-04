@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿
+using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
@@ -37,6 +38,10 @@ public class PlayerController : MonoBehaviour
     [Header("Slide Visual")]
     public float slideModelYOffset = -0.55f;
     public float slideVisualLerpSpeed = 12f;
+
+    // NOWE: Podnoszenie modelu podczas czolgania
+    [Header("Crawl Visual")]
+    public float crawlModelYOffset = 0.1f;
 
     [Header("Slide Collider")]
     [Range(0.3f, 1f)]
@@ -84,6 +89,7 @@ public class PlayerController : MonoBehaviour
     private Vector3 dashDirection = Vector3.zero;
 
     private Vector3 modelStartLocalPos;
+
     private float capsuleNormalHeight;
     private Vector3 capsuleNormalCenter;
     private float capsuleSlideHeight;
@@ -94,6 +100,7 @@ public class PlayerController : MonoBehaviour
     private bool wallJumpPressed = false;
 
     private bool isSliding = false;
+    private bool isCrawling = false;
     private float slideTimer = 0f;
 
     private bool isDashing = false;
@@ -138,9 +145,15 @@ public class PlayerController : MonoBehaviour
             capsuleNormalHeight = capsule.height;
             capsuleNormalCenter = capsule.center;
 
-            capsuleSlideHeight = capsuleNormalHeight * slideColliderHeightMultiplier;
-            float heightDifference = capsuleNormalHeight - capsuleSlideHeight;
-            capsuleSlideCenter = capsuleNormalCenter - new Vector3(0f, heightDifference * 0.5f, 0f);
+            capsuleSlideHeight =
+                capsuleNormalHeight * slideColliderHeightMultiplier;
+
+            float heightDifference =
+                capsuleNormalHeight - capsuleSlideHeight;
+
+            capsuleSlideCenter =
+                capsuleNormalCenter -
+                new Vector3(0f, heightDifference * 0.5f, 0f);
         }
 
         if (dashTrail != null)
@@ -175,10 +188,29 @@ public class PlayerController : MonoBehaviour
         bool controlHeld = Input.GetKey(KeyCode.LeftControl);
         bool shiftHeld = Input.GetKey(KeyCode.LeftShift);
 
-        bool isCrawling = isMoving && controlHeld && !isSliding && !isDashing;
-        bool isRunning = isMoving && shiftHeld && !controlHeld && !isSliding && !isDashing;
+        bool wantsToCrawl =
+            isMoving &&
+            controlHeld &&
+            !isSliding &&
+            !isDashing;
 
-        currentJumpForce = isRunning ? runJumpForce : jumpForce;
+        bool canStand = CanStandUp();
+
+        isCrawling =
+            !isSliding &&
+            !isDashing &&
+            (wantsToCrawl || !canStand);
+
+        bool isRunning =
+            isMoving &&
+            shiftHeld &&
+            !controlHeld &&
+            !isSliding &&
+            !isDashing &&
+            canStand;
+
+        currentJumpForce =
+            isRunning ? runJumpForce : jumpForce;
 
         if (isGrounded)
             coyoteTimer = coyoteTime;
@@ -190,6 +222,7 @@ public class PlayerController : MonoBehaviour
         UpdateSlide(isRunning, isCrawling);
         UpdateWallHold();
         HandleDashInput();
+
         UpdateSlideBodyShape();
 
         if (animator != null)
@@ -200,8 +233,16 @@ public class PlayerController : MonoBehaviour
             animator.SetBool("IsGrounded", isGrounded);
             animator.SetBool("isSliding", isSliding);
             animator.SetBool("isWallHolding", isWallHolding);
-            animator.SetBool("isWallLeft", isWallHolding && isWallLeft);
-            animator.SetBool("isWallRight", isWallHolding && isWallRight);
+
+            animator.SetBool(
+                "isWallLeft",
+                isWallHolding && isWallLeft
+            );
+
+            animator.SetBool(
+                "isWallRight",
+                isWallHolding && isWallRight
+            );
         }
 
         HandleFootsteps(isMoving, isRunning, isCrawling);
@@ -213,26 +254,51 @@ public class PlayerController : MonoBehaviour
     {
         if (isDead || rb == null) return;
 
+        // Collider aktualizowany w kroku fizyki.
+        UpdateCapsuleSlideShape();
+
         bool isMoving = inputDirection.magnitude > 0.1f;
         bool controlHeld = Input.GetKey(KeyCode.LeftControl);
         bool shiftHeld = Input.GetKey(KeyCode.LeftShift);
 
-        bool isCrawling = isMoving && controlHeld && !isSliding && !isDashing;
-        bool isRunning = isMoving && shiftHeld && !controlHeld && !isSliding && !isDashing;
+        bool crawlingNow = isCrawling;
+
+        bool isRunning =
+            isMoving &&
+            shiftHeld &&
+            !controlHeld &&
+            !isSliding &&
+            !isDashing &&
+            !crawlingNow;
 
         Vector3 platformMove = Vector3.zero;
+
         if (currentPlatform != null)
             platformMove = currentPlatform.PlatformDelta;
 
         if (isDashing)
         {
-            Vector3 dashMove = dashDirection * dashSpeed * Time.fixedDeltaTime;
-            rb.MovePosition(rb.position + platformMove + dashMove);
+            Vector3 dashMove =
+                dashDirection *
+                dashSpeed *
+                Time.fixedDeltaTime;
+
+            rb.MovePosition(
+                rb.position + platformMove + dashMove
+            );
 
             if (dashDirection.sqrMagnitude > 0.01f)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(dashDirection);
-                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
+                Quaternion targetRotation =
+                    Quaternion.LookRotation(dashDirection);
+
+                rb.MoveRotation(
+                    Quaternion.Slerp(
+                        rb.rotation,
+                        targetRotation,
+                        rotationSpeed * Time.fixedDeltaTime
+                    )
+                );
             }
 
             return;
@@ -251,13 +317,27 @@ public class PlayerController : MonoBehaviour
 
         if (isSliding)
         {
-            Vector3 slideMove = slideDirection * slideSpeed * Time.fixedDeltaTime;
-            rb.MovePosition(rb.position + platformMove + slideMove);
+            Vector3 slideMove =
+                slideDirection *
+                slideSpeed *
+                Time.fixedDeltaTime;
+
+            rb.MovePosition(
+                rb.position + platformMove + slideMove
+            );
 
             if (slideDirection.sqrMagnitude > 0.01f)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(slideDirection);
-                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
+                Quaternion targetRotation =
+                    Quaternion.LookRotation(slideDirection);
+
+                rb.MoveRotation(
+                    Quaternion.Slerp(
+                        rb.rotation,
+                        targetRotation,
+                        rotationSpeed * Time.fixedDeltaTime
+                    )
+                );
             }
 
             return;
@@ -269,13 +349,14 @@ public class PlayerController : MonoBehaviour
         {
             targetSpeed = walkSpeed;
 
-            if (isCrawling)
+            if (crawlingNow)
                 targetSpeed = crawlSpeed;
             else if (isRunning)
                 targetSpeed = runSpeed;
         }
 
-        float speedChangeRate = isMoving ? acceleration : deceleration;
+        float speedChangeRate =
+            isMoving ? acceleration : deceleration;
 
         currentMoveSpeed = Mathf.MoveTowards(
             currentMoveSpeed,
@@ -287,7 +368,10 @@ public class PlayerController : MonoBehaviour
 
         if (isMoving)
         {
-            playerMove = inputDirection * currentMoveSpeed * Time.fixedDeltaTime;
+            playerMove =
+                inputDirection *
+                currentMoveSpeed *
+                Time.fixedDeltaTime;
 
             bool canRotate =
                 !isWallHolding &&
@@ -295,12 +379,22 @@ public class PlayerController : MonoBehaviour
 
             if (canRotate)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(inputDirection);
-                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
+                Quaternion targetRotation =
+                    Quaternion.LookRotation(inputDirection);
+
+                rb.MoveRotation(
+                    Quaternion.Slerp(
+                        rb.rotation,
+                        targetRotation,
+                        rotationSpeed * Time.fixedDeltaTime
+                    )
+                );
             }
         }
 
-        rb.MovePosition(rb.position + platformMove + playerMove);
+        rb.MovePosition(
+            rb.position + platformMove + playerMove
+        );
 
         if (jumpPressed)
         {
@@ -310,7 +404,10 @@ public class PlayerController : MonoBehaviour
             velocity.y = 0f;
             rb.linearVelocity = velocity;
 
-            rb.AddForce(Vector3.up * currentJumpForce, ForceMode.Impulse);
+            rb.AddForce(
+                Vector3.up * currentJumpForce,
+                ForceMode.Impulse
+            );
         }
 
         if (wallJumpPressed)
@@ -321,7 +418,10 @@ public class PlayerController : MonoBehaviour
             velocity.y = 0f;
             rb.linearVelocity = velocity;
 
-            rb.AddForce(wallJumpDirection * wallJumpForce, ForceMode.Impulse);
+            rb.AddForce(
+                wallJumpDirection * wallJumpForce,
+                ForceMode.Impulse
+            );
         }
     }
 
@@ -341,11 +441,13 @@ public class PlayerController : MonoBehaviour
             camForward.Normalize();
             camRight.Normalize();
 
-            inputDirection = (camForward * z + camRight * x).normalized;
+            inputDirection =
+                (camForward * z + camRight * x).normalized;
         }
         else
         {
-            inputDirection = new Vector3(x, 0f, z).normalized;
+            inputDirection =
+                new Vector3(x, 0f, z).normalized;
         }
 
         if (inputDirection.sqrMagnitude > 0.01f)
@@ -381,7 +483,11 @@ public class PlayerController : MonoBehaviour
         if (dashCooldownTimer > 0f) return;
         if (!allowAirDash && !isGrounded) return;
 
-        Vector3 rawDashDirection = inputDirection.sqrMagnitude > 0.01f ? inputDirection : lastMoveDirection;
+        Vector3 rawDashDirection =
+            inputDirection.sqrMagnitude > 0.01f
+            ? inputDirection
+            : lastMoveDirection;
+
         rawDashDirection.y = 0f;
 
         if (rawDashDirection.sqrMagnitude <= 0.0001f)
@@ -428,12 +534,41 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        Vector3 origin = transform.position + Vector3.up * wallCheckHeight;
+        Vector3 origin =
+            transform.position +
+            Vector3.up * wallCheckHeight;
 
-        bool hitLeft = Physics.Raycast(origin, -transform.right, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
-        bool hitRight = Physics.Raycast(origin, transform.right, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
-        bool hitForward = Physics.Raycast(origin, transform.forward, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
-        bool hitBackward = Physics.Raycast(origin, -transform.forward, wallCheckDistance, wallLayer, QueryTriggerInteraction.Ignore);
+        bool hitLeft = Physics.Raycast(
+            origin,
+            -transform.right,
+            wallCheckDistance,
+            wallLayer,
+            QueryTriggerInteraction.Ignore
+        );
+
+        bool hitRight = Physics.Raycast(
+            origin,
+            transform.right,
+            wallCheckDistance,
+            wallLayer,
+            QueryTriggerInteraction.Ignore
+        );
+
+        bool hitForward = Physics.Raycast(
+            origin,
+            transform.forward,
+            wallCheckDistance,
+            wallLayer,
+            QueryTriggerInteraction.Ignore
+        );
+
+        bool hitBackward = Physics.Raycast(
+            origin,
+            -transform.forward,
+            wallCheckDistance,
+            wallLayer,
+            QueryTriggerInteraction.Ignore
+        );
 
         isWallLeft = hitLeft || hitForward;
         isWallRight = hitRight || hitBackward;
@@ -447,12 +582,20 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        if (Input.GetKeyDown(slideKey) && isGrounded && isRunning && !isCrawling && !isSliding)
+        if (Input.GetKeyDown(slideKey) &&
+            isGrounded &&
+            isRunning &&
+            !isCrawling &&
+            !isSliding)
         {
             isSliding = true;
             isWallHolding = false;
             slideTimer = slideDuration;
-            slideDirection = inputDirection.sqrMagnitude > 0.01f ? inputDirection : lastMoveDirection;
+
+            slideDirection =
+                inputDirection.sqrMagnitude > 0.01f
+                ? inputDirection
+                : lastMoveDirection;
         }
 
         if (isSliding)
@@ -488,7 +631,10 @@ public class PlayerController : MonoBehaviour
 
         bool falling = rb.linearVelocity.y <= 0f;
 
-        isWallHolding = touchingWall && pressingAnyMoveKey && falling;
+        isWallHolding =
+            touchingWall &&
+            pressingAnyMoveKey &&
+            falling;
 
         if (!touchingWall)
         {
@@ -500,15 +646,22 @@ public class PlayerController : MonoBehaviour
     void HandleJumpInput(bool isCrawling)
     {
         if (isDashing) return;
-        if (!Input.GetKeyDown(KeyCode.Space) || isCrawling) return;
+
+        if (!Input.GetKeyDown(KeyCode.Space) || isCrawling)
+            return;
 
         if (isWallHolding)
         {
             wallJumpPressed = true;
             jumpPressed = false;
 
-            Vector3 awayFromWall = isWallLeft ? transform.right : -transform.right;
-            wallJumpDirection = (awayFromWall + Vector3.up).normalized;
+            Vector3 awayFromWall =
+                isWallLeft
+                ? transform.right
+                : -transform.right;
+
+            wallJumpDirection =
+                (awayFromWall + Vector3.up).normalized;
 
             isWallHolding = false;
             isWallLeft = false;
@@ -532,8 +685,12 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        bool canGroundJump = isGrounded || coyoteTimer > 0f;
-        bool canAirJump = !canGroundJump && jumpCount < maxJumps;
+        bool canGroundJump =
+            isGrounded || coyoteTimer > 0f;
+
+        bool canAirJump =
+            !canGroundJump &&
+            jumpCount < maxJumps;
 
         if (canGroundJump || canAirJump)
         {
@@ -569,18 +726,31 @@ public class PlayerController : MonoBehaviour
     void UpdateSlideBodyShape()
     {
         UpdateModelSlideOffset();
-        UpdateCapsuleSlideShape();
     }
 
+    // POPRAWKA: Obsluga modelu podczas czolgania.
     void UpdateModelSlideOffset()
     {
         if (modelRoot == null) return;
 
         Vector3 targetPos = modelStartLocalPos;
 
+        // Przesuniecie modelu podczas slizgu.
         if (isSliding)
-            targetPos = modelStartLocalPos + new Vector3(0f, slideModelYOffset, 0f);
+        {
+            targetPos =
+                modelStartLocalPos +
+                new Vector3(0f, slideModelYOffset, 0f);
+        }
+        // Podniesienie modelu podczas czolgania.
+        else if (isCrawling)
+        {
+            targetPos =
+                modelStartLocalPos +
+                new Vector3(0f, crawlModelYOffset, 0f);
+        }
 
+        // Plynne przejscie miedzy pozycjami.
         modelRoot.localPosition = Vector3.Lerp(
             modelRoot.localPosition,
             targetPos,
@@ -588,46 +758,89 @@ public class PlayerController : MonoBehaviour
         );
     }
 
+    // Collider aktualizowany w FixedUpdate.
     void UpdateCapsuleSlideShape()
     {
         if (capsule == null) return;
 
-        bool shouldStayLow = isSliding || !CanStandUp();
+        bool shouldStayLow =
+            isSliding ||
+            isCrawling ||
+            !CanStandUp();
 
-        float targetHeight = shouldStayLow ? capsuleSlideHeight : capsuleNormalHeight;
-        Vector3 targetCenter = shouldStayLow ? capsuleSlideCenter : capsuleNormalCenter;
-
-        capsule.height = Mathf.Lerp(capsule.height, targetHeight, Time.deltaTime * colliderLerpSpeed);
-        capsule.center = Vector3.Lerp(capsule.center, targetCenter, Time.deltaTime * colliderLerpSpeed);
+        if (shouldStayLow)
+        {
+            capsule.height = capsuleSlideHeight;
+            capsule.center = capsuleSlideCenter;
+        }
+        else
+        {
+            capsule.height = capsuleNormalHeight;
+            capsule.center = capsuleNormalCenter;
+        }
     }
 
     bool CanStandUp()
     {
         if (capsule == null) return true;
 
-        float radius = Mathf.Max(0.05f, capsule.radius * 0.95f);
-        float checkHeight = capsuleNormalHeight - (radius * 2f);
+        float scaleY =
+            Mathf.Abs(transform.lossyScale.y);
 
-        Vector3 bottom = transform.TransformPoint(
-            capsuleNormalCenter + Vector3.down * (capsuleNormalHeight * 0.5f - radius)
+        float scaleXZ = Mathf.Max(
+            Mathf.Abs(transform.lossyScale.x),
+            Mathf.Abs(transform.lossyScale.z)
         );
 
-        Vector3 top = bottom + Vector3.up * Mathf.Max(0.01f, checkHeight);
+        float radius = Mathf.Max(
+            0.05f,
+            capsule.radius * scaleXZ * 0.95f
+        );
+
+        float height =
+            capsuleNormalHeight * scaleY;
+
+        float checkHeight = Mathf.Max(
+            0.01f,
+            height - radius * 2f
+        );
+
+        Vector3 worldCenter =
+            transform.TransformPoint(capsuleNormalCenter);
+
+        Vector3 bottom =
+            worldCenter +
+            Vector3.down * (height * 0.5f - radius);
+
+        Vector3 top =
+            bottom +
+            Vector3.up * checkHeight;
+
+        int standCheckMask =
+            ~(1 << gameObject.layer);
 
         bool blocked = Physics.CheckCapsule(
             bottom,
             top,
             radius,
-            wallLayer,
+            standCheckMask,
             QueryTriggerInteraction.Ignore
         );
 
         return !blocked;
     }
 
-    void HandleFootsteps(bool isMoving, bool isRunning, bool isCrawling)
+    void HandleFootsteps(
+        bool isMoving,
+        bool isRunning,
+        bool isCrawling)
     {
-        if (!isGrounded || !isMoving || isSliding || isWallHolding || isDashing || footstepSound == null)
+        if (!isGrounded ||
+            !isMoving ||
+            isSliding ||
+            isWallHolding ||
+            isDashing ||
+            footstepSound == null)
         {
             footstepTimer = 0f;
             return;
@@ -649,12 +862,18 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void HandleMovementParticles(bool isMoving, bool isRunning, bool isCrawling)
+    void HandleMovementParticles(
+        bool isMoving,
+        bool isRunning,
+        bool isCrawling)
     {
         if (movementParticles == null)
             return;
 
-        if (!isGrounded || isCrawling || isWallHolding || isDashing)
+        if (!isGrounded ||
+            isCrawling ||
+            isWallHolding ||
+            isDashing)
         {
             SetMovementParticleRate(0f);
 
@@ -717,7 +936,8 @@ public class PlayerController : MonoBehaviour
     {
         bool landedNow = !isGrounded;
 
-        if (collision.gameObject.CompareTag("Ground") || collision.gameObject.CompareTag("Platform"))
+        if (collision.gameObject.CompareTag("Ground") ||
+            collision.gameObject.CompareTag("Platform"))
         {
             if (HasGroundContact(collision))
             {
@@ -728,7 +948,11 @@ public class PlayerController : MonoBehaviour
                 isWallRight = false;
 
                 if (collision.gameObject.CompareTag("Platform"))
-                    currentPlatform = collision.gameObject.GetComponent<Ruchomaplatforma>();
+                {
+                    currentPlatform =
+                        collision.gameObject
+                        .GetComponent<Ruchomaplatforma>();
+                }
 
                 if (animator != null)
                 {
@@ -746,7 +970,8 @@ public class PlayerController : MonoBehaviour
 
     void OnCollisionStay(Collision collision)
     {
-        if (collision.gameObject.CompareTag("Ground") || collision.gameObject.CompareTag("Platform"))
+        if (collision.gameObject.CompareTag("Ground") ||
+            collision.gameObject.CompareTag("Platform"))
         {
             if (HasGroundContact(collision))
             {
@@ -755,7 +980,11 @@ public class PlayerController : MonoBehaviour
                 isWallHolding = false;
 
                 if (collision.gameObject.CompareTag("Platform"))
-                    currentPlatform = collision.gameObject.GetComponent<Ruchomaplatforma>();
+                {
+                    currentPlatform =
+                        collision.gameObject
+                        .GetComponent<Ruchomaplatforma>();
+                }
 
                 if (animator != null)
                 {
@@ -771,7 +1000,8 @@ public class PlayerController : MonoBehaviour
         if (collision.gameObject.CompareTag("Platform"))
             currentPlatform = null;
 
-        if (collision.gameObject.CompareTag("Ground") || collision.gameObject.CompareTag("Platform"))
+        if (collision.gameObject.CompareTag("Ground") ||
+            collision.gameObject.CompareTag("Platform"))
         {
             isGrounded = false;
 
@@ -784,8 +1014,12 @@ public class PlayerController : MonoBehaviour
     {
         foreach (ContactPoint contact in collision.contacts)
         {
-            if (Vector3.Dot(contact.normal, Vector3.up) > 0.4f)
+            if (Vector3.Dot(
+                contact.normal,
+                Vector3.up) > 0.4f)
+            {
                 return true;
+            }
         }
 
         return false;
