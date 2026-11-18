@@ -254,174 +254,96 @@ public class PlayerController : MonoBehaviour
     {
         if (isDead || rb == null) return;
 
-        // Collider aktualizowany w kroku fizyki.
         UpdateCapsuleSlideShape();
 
         bool isMoving = inputDirection.magnitude > 0.1f;
         bool controlHeld = Input.GetKey(KeyCode.LeftControl);
         bool shiftHeld = Input.GetKey(KeyCode.LeftShift);
-
         bool crawlingNow = isCrawling;
 
-        bool isRunning =
-            isMoving &&
-            shiftHeld &&
-            !controlHeld &&
-            !isSliding &&
-            !isDashing &&
-            !crawlingNow;
+        bool isRunning = isMoving && shiftHeld && !controlHeld &&
+                         !isSliding && !isDashing && !crawlingNow;
 
-        Vector3 platformMove = Vector3.zero;
-
-        if (currentPlatform != null)
-            platformMove = currentPlatform.PlatformDelta;
-
-        if (isDashing)
-        {
-            Vector3 dashMove =
-                dashDirection *
-                dashSpeed *
-                Time.fixedDeltaTime;
-
-            rb.MovePosition(
-                rb.position + platformMove + dashMove
-            );
-
-            if (dashDirection.sqrMagnitude > 0.01f)
-            {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(dashDirection);
-
-                rb.MoveRotation(
-                    Quaternion.Slerp(
-                        rb.rotation,
-                        targetRotation,
-                        rotationSpeed * Time.fixedDeltaTime
-                    )
-                );
-            }
-
-            return;
-        }
+        // Ruch platformy przekazujemy jako predkosc, a nie przesuniecie pozycji.
+        Vector3 platformVelocity = currentPlatform != null
+            ? currentPlatform.PlatformVelocity
+            : Vector3.zero;
 
         if (isWallHolding)
         {
-            Vector3 velocity = rb.linearVelocity;
-
-            if (velocity.y < wallSlideSpeed)
-                velocity.y = wallSlideSpeed;
-
-            rb.linearVelocity = velocity;
+            Vector3 wallVelocity = rb.linearVelocity;
+            if (wallVelocity.y < wallSlideSpeed)
+                wallVelocity.y = wallSlideSpeed;
+            rb.linearVelocity = wallVelocity;
             return;
         }
 
-        if (isSliding)
-        {
-            Vector3 slideMove =
-                slideDirection *
-                slideSpeed *
-                Time.fixedDeltaTime;
+        Vector3 desiredMovementVelocity = Vector3.zero;
 
-            rb.MovePosition(
-                rb.position + platformMove + slideMove
+        if (isDashing)
+        {
+            desiredMovementVelocity = dashDirection * dashSpeed;
+        }
+        else if (isSliding)
+        {
+            desiredMovementVelocity = slideDirection * slideSpeed;
+        }
+        else
+        {
+            float targetSpeed = 0f;
+            if (isMoving)
+            {
+                targetSpeed = crawlingNow ? crawlSpeed :
+                    (isRunning ? runSpeed : walkSpeed);
+            }
+
+            float speedChangeRate = isMoving ? acceleration : deceleration;
+            currentMoveSpeed = Mathf.MoveTowards(
+                currentMoveSpeed, targetSpeed,
+                speedChangeRate * Time.fixedDeltaTime
             );
 
-            if (slideDirection.sqrMagnitude > 0.01f)
-            {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(slideDirection);
-
-                rb.MoveRotation(
-                    Quaternion.Slerp(
-                        rb.rotation,
-                        targetRotation,
-                        rotationSpeed * Time.fixedDeltaTime
-                    )
-                );
-            }
-
-            return;
+            if (isMoving)
+                desiredMovementVelocity = inputDirection * currentMoveSpeed;
         }
 
-        float targetSpeed = 0f;
+        Vector3 velocity = rb.linearVelocity;
+        Vector3 horizontalVelocity = desiredMovementVelocity +
+            new Vector3(platformVelocity.x, 0f, platformVelocity.z);
+        velocity.x = horizontalVelocity.x;
+        velocity.z = horizontalVelocity.z;
+        rb.linearVelocity = velocity;
 
-        if (isMoving)
+        Vector3 facingDirection = isDashing ? dashDirection :
+            (isSliding ? slideDirection : inputDirection);
+        bool canRotate = isDashing || isSliding ||
+            (isMoving && !(!isGrounded && (isWallLeft || isWallRight)));
+
+        if (canRotate && facingDirection.sqrMagnitude > 0.01f)
         {
-            targetSpeed = walkSpeed;
-
-            if (crawlingNow)
-                targetSpeed = crawlSpeed;
-            else if (isRunning)
-                targetSpeed = runSpeed;
+            Quaternion targetRotation = Quaternion.LookRotation(facingDirection);
+            rb.MoveRotation(Quaternion.Slerp(
+                rb.rotation, targetRotation,
+                rotationSpeed * Time.fixedDeltaTime
+            ));
         }
-
-        float speedChangeRate =
-            isMoving ? acceleration : deceleration;
-
-        currentMoveSpeed = Mathf.MoveTowards(
-            currentMoveSpeed,
-            targetSpeed,
-            speedChangeRate * Time.fixedDeltaTime
-        );
-
-        Vector3 playerMove = Vector3.zero;
-
-        if (isMoving)
-        {
-            playerMove =
-                inputDirection *
-                currentMoveSpeed *
-                Time.fixedDeltaTime;
-
-            bool canRotate =
-                !isWallHolding &&
-                !(!isGrounded && (isWallLeft || isWallRight));
-
-            if (canRotate)
-            {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(inputDirection);
-
-                rb.MoveRotation(
-                    Quaternion.Slerp(
-                        rb.rotation,
-                        targetRotation,
-                        rotationSpeed * Time.fixedDeltaTime
-                    )
-                );
-            }
-        }
-
-        rb.MovePosition(
-            rb.position + platformMove + playerMove
-        );
 
         if (jumpPressed)
         {
             jumpPressed = false;
-
-            Vector3 velocity = rb.linearVelocity;
-            velocity.y = 0f;
-            rb.linearVelocity = velocity;
-
-            rb.AddForce(
-                Vector3.up * currentJumpForce,
-                ForceMode.Impulse
-            );
+            Vector3 jumpVelocity = rb.linearVelocity;
+            jumpVelocity.y = 0f;
+            rb.linearVelocity = jumpVelocity;
+            rb.AddForce(Vector3.up * currentJumpForce, ForceMode.Impulse);
         }
 
         if (wallJumpPressed)
         {
             wallJumpPressed = false;
-
-            Vector3 velocity = rb.linearVelocity;
-            velocity.y = 0f;
-            rb.linearVelocity = velocity;
-
-            rb.AddForce(
-                wallJumpDirection * wallJumpForce,
-                ForceMode.Impulse
-            );
+            Vector3 jumpVelocity = rb.linearVelocity;
+            jumpVelocity.y = 0f;
+            rb.linearVelocity = jumpVelocity;
+            rb.AddForce(wallJumpDirection * wallJumpForce, ForceMode.Impulse);
         }
     }
 
@@ -654,6 +576,7 @@ public class PlayerController : MonoBehaviour
         {
             wallJumpPressed = true;
             jumpPressed = false;
+            currentPlatform = null;
 
             Vector3 awayFromWall =
                 isWallLeft
@@ -696,6 +619,7 @@ public class PlayerController : MonoBehaviour
         {
             jumpPressed = true;
             wallJumpPressed = false;
+            currentPlatform = null;
             isSliding = false;
             isWallHolding = false;
             isWallLeft = false;
@@ -949,9 +873,11 @@ public class PlayerController : MonoBehaviour
 
                 if (collision.gameObject.CompareTag("Platform"))
                 {
-                    currentPlatform =
-                        collision.gameObject
-                        .GetComponent<Ruchomaplatforma>();
+                    currentPlatform = collision.gameObject.GetComponentInParent<Ruchomaplatforma>();
+                }
+                else if (collision.gameObject.CompareTag("Ground"))
+                {
+                    currentPlatform = null;
                 }
 
                 if (animator != null)
@@ -981,9 +907,11 @@ public class PlayerController : MonoBehaviour
 
                 if (collision.gameObject.CompareTag("Platform"))
                 {
-                    currentPlatform =
-                        collision.gameObject
-                        .GetComponent<Ruchomaplatforma>();
+                    currentPlatform = collision.gameObject.GetComponentInParent<Ruchomaplatforma>();
+                }
+                else if (collision.gameObject.CompareTag("Ground"))
+                {
+                    currentPlatform = null;
                 }
 
                 if (animator != null)
@@ -997,7 +925,8 @@ public class PlayerController : MonoBehaviour
 
     void OnCollisionExit(Collision collision)
     {
-        if (collision.gameObject.CompareTag("Platform"))
+        if (collision.gameObject.CompareTag("Platform") &&
+            collision.gameObject.GetComponentInParent<Ruchomaplatforma>() == currentPlatform)
             currentPlatform = null;
 
         if (collision.gameObject.CompareTag("Ground") ||

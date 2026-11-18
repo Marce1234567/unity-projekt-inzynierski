@@ -1,7 +1,10 @@
 using UnityEngine;
 
+[DefaultExecutionOrder(-100)]
+[RequireComponent(typeof(Rigidbody))]
 public class Ruchomaplatforma : MonoBehaviour
 {
+    [Header("Ruch platformy")]
     public float speed = 2f;
 
     public bool moveUpDown = true;
@@ -10,35 +13,45 @@ public class Ruchomaplatforma : MonoBehaviour
     public bool moveForwardBack = false;
     public float distance = 3f;
 
+    private Rigidbody rb;
     private Vector3 startPos;
     private Vector3 lastPosition;
+    private float movementTime;
 
     public Vector3 PlatformDelta { get; private set; }
+    public Vector3 PlatformVelocity { get; private set; }
 
-    void Start()
+    private void Awake()
     {
-        startPos = transform.position;
-        lastPosition = transform.position;
+        rb = GetComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
     }
 
-    void Update()
+    private void Start()
     {
-        float y = 0f;
-        float z = 0f;
+        startPos = rb.position;
+        lastPosition = rb.position;
+    }
 
-        if (moveUpDown)
-            y = Mathf.Sin(Time.time * speed) * height;
+    private void FixedUpdate()
+    {
+        movementTime += Time.fixedDeltaTime;
 
-        if (moveForwardBack)
-            z = Mathf.Sin(Time.time * speed) * distance;
+        float y = moveUpDown ? Mathf.Sin(movementTime * speed) * height : 0f;
+        float z = moveForwardBack ? Mathf.Sin(movementTime * speed) * distance : 0f;
 
-        transform.position = new Vector3(
+        Vector3 targetPosition = new Vector3(
             startPos.x,
             startPos.y + y,
             startPos.z + z
         );
 
-        PlatformDelta = transform.position - lastPosition;
-        lastPosition = transform.position;
+        PlatformDelta = targetPosition - lastPosition;
+        PlatformVelocity = PlatformDelta / Time.fixedDeltaTime;
+        rb.MovePosition(targetPosition);
+        lastPosition = targetPosition;
     }
 }
