@@ -1,4 +1,3 @@
-
 using UnityEngine;
 using TMPro;
 
@@ -13,12 +12,33 @@ public class Levelfinish : MonoBehaviour
     [Header("Level Progress")]
     public int currentLevelNumber = 1;
 
+    [Header("Finish Effect")]
+    public GameObject finishEffectPrefab;
+    public Transform finishEffectPoint;
+
+    [Header("Finish Sound")]
+    public AudioClip finishSound;
+
+    [Range(0f, 1f)]
+    public float finishSoundVolume = 0.8f;
+
+    private AudioSource audioSource;
     private bool finished = false;
 
     private void Start()
     {
         if (levelCompletePanel != null)
             levelCompletePanel.SetActive(false);
+
+        audioSource = GetComponent<AudioSource>();
+
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+
+        audioSource.playOnAwake = false;
+        audioSource.loop = false;
+        audioSource.spatialBlend = 0f;
+        audioSource.ignoreListenerPause = true;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -46,20 +66,26 @@ public class Levelfinish : MonoBehaviour
 
         // Zatrzymanie gracza
         PlayerController controller =
-            other.GetComponent<PlayerController>();
+            other.GetComponentInParent<PlayerController>();
 
         if (controller != null)
             controller.isDead = true;
 
-        Rigidbody rb = other.GetComponent<Rigidbody>();
+        Rigidbody rb = other.attachedRigidbody;
 
-        if (rb != null)
+        if (rb != null && !rb.isKinematic)
         {
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
         }
 
-        // NOWE: Wyswietlanie liczby monet
+        // Uruchomienie efektu czasteczkowego
+        PlayFinishEffect();
+
+        // Odtworzenie dzwieku mety
+        PlayFinishSound();
+
+        // Wyswietlenie liczby monet
         UpdateFinishCoins();
 
         // Pokazanie panelu mety
@@ -68,6 +94,34 @@ public class Levelfinish : MonoBehaviour
 
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
+    }
+
+    private void PlayFinishEffect()
+    {
+        if (finishEffectPrefab == null)
+            return;
+
+        Vector3 effectPosition = transform.position;
+
+        if (finishEffectPoint != null)
+            effectPosition = finishEffectPoint.position;
+
+        Instantiate(
+            finishEffectPrefab,
+            effectPosition,
+            Quaternion.identity
+        );
+    }
+
+    private void PlayFinishSound()
+    {
+        if (audioSource != null && finishSound != null)
+        {
+            audioSource.PlayOneShot(
+                finishSound,
+                finishSoundVolume
+            );
+        }
     }
 
     private void UpdateFinishCoins()
